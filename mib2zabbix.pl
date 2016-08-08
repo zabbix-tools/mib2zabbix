@@ -387,29 +387,6 @@ sub oid_path {
     return $path;
 }
 
-=head2 get_child_by_label
-
-Parameters  : SNMP::MIB::Node   $node
-                  (string)          $child_label
-Returns     : SNMP::MIB::NODE   $child
-Description : Returns the direct descendant OID of the specified OID
-                  if the label name matches, otherwise undef.
-
-=cut
-sub get_child_by_label {
-    my ($node, $child_label) = @_;
-    
-    if ($node && $child_label) {       
-        foreach my $child(@{ $node->{ children } }) {
-            if ($child->{ label } eq $child_label) {
-                return $child;
-            }
-        }
-    }
-    
-    return undef;
-}
-
 =head2 node_to_item
 
 Parameters  : SNMP::MIB::Node   $node

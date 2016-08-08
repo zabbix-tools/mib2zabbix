@@ -52,6 +52,13 @@ tree in a SNMP MIB file.
 * Net-SNMP
 * Correctly configured [MIB files](http://net-snmp.sourceforge.net/tutorial/tutorial-5/commands/mib-options.html)
 
+### Installation
+
+The following packages satisfy the runtime requirements of the script on the
+associated operating systems:
+
+* Ubuntu: `$ apt-get install perl libxml-simple-perl libsnmp-perl'
+
 ### Translations
 
 This table describes how MIB elements are translated into Zabbix template
