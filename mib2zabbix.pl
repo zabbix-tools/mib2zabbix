@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 =pod
 
 =head1 NAME
@@ -7,28 +7,24 @@ mib2zabbix.pl - SNMP MIB to Zabbix Template
 
 =head1 SYNOPSIS
 
-mib2zabbix.pl [ -l | -t ] -o <OID> [OPTIONS]...
+mib2zabbix.pl -o <OID> [OPTIONS]...
     
 Export loaded SNMP MIB OIDs to Zabbix Template XML
 
-    --export-maps           export value maps directly to Zabbix database
-    
-    -t, --template          generate a Zabbix template
-    -f, --filename=PATH     output filename (default: stdout)
+    -f, --filename=PATH         output filename (default: stdout)
    
-    -N, --name=STRING       template name (default: OID label)
-    -G, --group=STRING      template group (default: 'Templates')
-    -e, --enable-items      enable template items (default: disabled)
-                            * enable with caution *
+    -N, --name=STRING           template name (default: OID label)
+    -G, --group=STRING          template group (default: 'Templates')
+    -e, --enable-items          enable all template items (default: disabled)
     
-    -o, --oid=STRING        OID tree root to export
+    -o, --oid=STRING            OID tree root to export (must start with '.')
     
-    -v, --snmpver=1|2|3     SNMP version (default: 1)
-    -p, --port=PORT         SNMP UDP port number (default: 161)
+    -v, --snmpver=1|2|3         SNMP version (default: 2)
+    -p, --port=PORT             SNMP UDP port number (default: 161)
     
 SNMP Version 1 or 2c specific
 
-    -c, --community=STRING  SNMP community string (default: 'public')
+    -c, --community=STRING      SNMP community string (default: 'public')
     
 SNMP Version 3 specific
 
@@ -39,32 +35,22 @@ SNMP Version 3 specific
     -A, --authpass=PASSPHRASE   authentication protocol passphrase
     -x, --privacy=PROTOCOL      privacy protocol (DES|AES)
     -X, --privpass=PASSPHRASE   privacy passphrase
+
+Zabbix item configuration
+
+    --check-delay=SECONDS       check interval in seconds (default: 60)
+    --disc-delay=SECONDS        discovery interval in seconds (default: 3600)
+    --history=DAYS              history retention in days (default: 7)
+    --trends=DAYS               trends retention in days (default: 365)
     
-    --check-delay=SECONDS   check interval in seconds (default: 300)
-    --disc-delay=SECONDS    discovery interval in seconds (default: 86400)
-    --history=DAYS          history retention in days (default: 365)
-    --trends=DAYS           trends retention in days (default: 3650)
-    
-    -h, --help		    print this message
+    -h, --help                  print this message
 
 =head1 DESCRIPTION
 
 B<mib2zabbix.pl> will export a loaded MIB tree into a Zabbix Template starting
 from the OID root specified.
 
-Requires: Perl v5+, Pod::Usage, XML::Simple, Net-SNMP
-
-=head1 NOTES
-
-Value mappings query:
-SELECT * FROM valuemaps JOIN mappings ON mappings.valuemapid = valuemaps.valuemapid
-
-Delete Value Maps and linked mappings:
-DELETE FROM valuemaps USING mappings WHERE mappings.valuemapid = valuemaps.valuemapid AND valuemaps.name LIKE 'SEARCH%';
-
-=head1 BUGS
-
-- Table indexes not found in iso.org.dod.internet.mgmt.mib-2.host (.1.3.6.1.2.1.25)
+Requires: Zabbix v3, Perl v5, Pod::Usage, XML::Simple, Net-SNMP
 
 =head1 AUTHOR
 
@@ -75,7 +61,8 @@ Ryan Armstrong <ryan@cavaliercoder.com>
 Guidelines for Authors and Reviewers of MIB Documents
 https://www.ietf.org/rfc/rfc4181.txt
 
-Next Generation Structure of Management Information (SMIng) Mappings to the Simple Network Management Protocol (SNMP)
+Next Generation Structure of Management Information (SMIng) Mappings to the
+Simple Network Management Protocol (SNMP)
 https://tools.ietf.org/html/rfc3781
 
 SNMP Table Basics
@@ -91,7 +78,6 @@ use warnings;
 use Cwd 'abs_path';
 use Data::Dumper;
 use Date::Format;
-use DBI;
 use Encode qw(decode encode);
 use File::Basename;
 use Pod::Usage;
@@ -100,14 +86,14 @@ use SNMP;
 use XML::Simple;
 
 # Get path info as constants
-use constant SCRIPT_NAME	=> basename($0);
-use constant BASE_PATH		=> dirname(abs_path($0));
+use constant SCRIPT_NAME    => basename($0);
+use constant BASE_PATH      => dirname(abs_path($0));
 
 use constant ZBX_SERVER_CONF    => '/etc/zabbix/zabbix_server.conf';
-use constant ZBX_WEB_CONF       => '/usr/share/zabbix/conf/zabbix.conf.php';
+use constant ZBX_WEB_CONF       => '/etc/zabbix/web/zabbix.conf.php';
 
 # For Zabbix type constants see:
-# https://www.zabbix.com/documentation/2.2/manual/api/reference/item/object
+# https://www.zabbix.com/documentation/3.0/manual/api/reference/item/object
 # Zabbix Item status
 use constant ZBX_ITEM_ENABLED       => 0;
 use constant ZBX_ITEM_DISABLED      => 1;
@@ -141,23 +127,23 @@ use constant ZBX_V3_SEC_AUTHPRIV        => 2;
 
 # SNMP Type -> Zabbix type mapping
 my $type_map = {
-    BITS            => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
-    COUNTER         => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
-    COUNTER32       => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
-    COUNTER64       => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
-    GAUGE           => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
-    GAUGE32         => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
-    INTEGER         => ZBX_VAL_TYPE_FLOAT,      # Zabbix 'Numeric Float' value type for an signed integer
-    INTEGER32       => ZBX_VAL_TYPE_FLOAT,      # Zabbix 'Numeric Float' value type for an signed 32 bit integer
-    IPADDR          => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for an IP address
-    NETADDDR        => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for a network address
-    NOTIF           => ZBX_ITEM_TYPE_SNMPTRAP,  # Zabbix 'SNMP Trap' item type
+    'BITS'          => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
+    'COUNTER'       => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
+    'COUNTER32'     => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
+    'COUNTER64'     => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
+    'GAUGE'         => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
+    'GAUGE32'       => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' value type for an unsigned integer
+    'INTEGER'       => ZBX_VAL_TYPE_FLOAT,      # Zabbix 'Numeric Float' value type for an signed integer
+    'INTEGER32'     => ZBX_VAL_TYPE_FLOAT,      # Zabbix 'Numeric Float' value type for an signed 32 bit integer
+    'IPADDR'        => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for an IP address
+    'NETADDDR'      => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for a network address
+    'NOTIF'         => ZBX_ITEM_TYPE_SNMPTRAP,  # Zabbix 'SNMP Trap' item type
     'TRAP'          => ZBX_ITEM_TYPE_SNMPTRAP,  # Zabbix 'SNMP Trap' item type
-    OBJECTID        => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for an OID
-    OCTETSTR        => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
-    OPAQUE          => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
-    TICKS           => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' for a Module 232 timestamp
-    UNSIGNED32      => ZBX_VAL_TYPE_UINT        # Zabbix 'Numeric Unsigned' value type for an unsigned 32bit integer
+    'OBJECTID'      => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type for an OID
+    'OCTETSTR'      => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
+    'OPAQUE'        => ZBX_VAL_TYPE_TEXT,       # Zabbix 'Text' value type
+    'TICKS'         => ZBX_VAL_TYPE_UINT,       # Zabbix 'Numeric Unsigned' for a Module 232 timestamp
+    'UNSIGNED32'    => ZBX_VAL_TYPE_UINT        # Zabbix 'Numeric Unsigned' value type for an unsigned 32bit integer
 };
 
 # SNMP Version -> Zabbix item type mapping
@@ -186,19 +172,19 @@ my $snmpv3_sec_protocol_map = {
 
 # Default command line options
 my $opts =  {
-    delay               => 300,             # 5 minute check interval
+    delay               => 60,              # 1 minute check interval
     disc_delay          => 3600,            # Hourly discovery
     enableitems         => 0,               # Disable items
     group               => 'Templates',
-    history             => 365,
-    trends              => 3650,
+    history             => 7,
+    trends              => 365,
     list                => 0,
     maxdepth            => -1,
     oid                 => '.1',
     use_macros          => 0,
     snmpcomm            => 'public',
     snmpport            => 161,
-    snmpver             => 1,
+    snmpver             => 2,
     v3auth_level        => 'noAuthNoPriv',
     v3context           => '',
     v3user              => '',
@@ -208,12 +194,12 @@ my $opts =  {
     v3sec_pass          => ''
 };
 
+# Capture calling args
+my $cmd = basename($0) . " @ARGV";
+
 # Get command line options
 Getopt::Long::Configure ("posix_default", "bundling");
 GetOptions(
-    'export-maps'           => \$opts->{ export_maps },     # Export value maps to database
-
-    't|template'            => \$opts->{ template },        # Output an XML Template
     'f|filename=s'          => \$opts->{ filename },        # Filename to output
     
     'N|name=s'              => \$opts->{ name },            # Template name
@@ -240,7 +226,7 @@ GetOptions(
     'history=i'             => \$opts->{ history },         # History retention in days
     'trends=i'              => \$opts->{ trends },          # Trends retention in days
     
-    'h|help'		    => \$opts->{ help }
+    'h|help'            => \$opts->{ help }
 ) || pod2usage();
 
 # Print usage if requested
@@ -296,16 +282,21 @@ my %item_template = (
     multiplier              => '0',                     # Enable multiplier
     trends                  => $opts->{ trends },       # Trends retention in days
     units                   => '',
-    valuemap                => ''
+    valuemap                => '',
+    logtimefmt              => '',
 );
 %item_template = (%item_base_template, %item_template);
 
 # Discovery rule template
 my %disc_rule_template = (
     delay                   => $opts->{ disc_delay },
-    filter                  => ':',
     lifetime                => '30',
-    
+    filter                  => {
+        evaltype            => 0,
+        formula             => undef,
+        conditions          => undef
+    },
+
     # The following items must be created as unique refs for each item
     host_prototypes         => [],
     item_prototypes         => [],
@@ -354,7 +345,9 @@ my %trap_template = (
 );
 
 # Item prototype template
-my %item_proto_template = ();
+my %item_proto_template = (
+    application_prototypes  => undef,
+);
 %item_proto_template = (%item_template, %item_proto_template);
 
 # Global value maps array
@@ -376,9 +369,9 @@ sub utf8_sanitize {
 
 =head2 oid_path
 
-Parameters	: SNMP::MIB::Node   $oid
-Returns		: (String) $oid_path
-Description	: Returns the fully qualified textual path of a MIB node by
+Parameters  : SNMP::MIB::Node   $oid
+Returns     : (String) $oid_path
+Description : Returns the fully qualified textual path of a MIB node by
                   traversing the node's parents.
 
 =cut
@@ -396,10 +389,10 @@ sub oid_path {
 
 =head2 get_child_by_label
 
-Parameters	: SNMP::MIB::Node   $node
+Parameters  : SNMP::MIB::Node   $node
                   (string)          $child_label
-Returns		: SNMP::MIB::NODE   $child
-Description	: Returns the direct descendant OID of the specified OID
+Returns     : SNMP::MIB::NODE   $child
+Description : Returns the direct descendant OID of the specified OID
                   if the label name matches, otherwise undef.
 
 =cut
@@ -419,10 +412,10 @@ sub get_child_by_label {
 
 =head2 node_to_item
 
-Parameters	: SNMP::MIB::Node   $node
+Parameters  : SNMP::MIB::Node   $node
                   (Hash)            $template
-Returns		: (Hash)            $item
-Description	: Returns a Zabbix Item hash derived from the specified MIB OID
+Returns     : (Hash)            $item
+Description : Returns a Zabbix Item hash derived from the specified MIB OID
 
 =cut
 sub node_to_item {
@@ -477,21 +470,24 @@ sub node_to_item {
     
     # Process value maps
     if (scalar keys % {$node->{ enums } }) {
-        # Add valuemap to global list
         my $map_name = "$node->{ moduleID }::$node->{ label }";
 
-        # If the map_name is longer than 64 characters...
-	if ( length($map_name) > 64 ) {
+        # If the map_name is longer than 64 characters truncate to 64 characters
+        # to match maximum database field length.
+        if (length($map_name) > 64) {
+            $map_name = substr($map_name,0,61) . "...";
+        }
 
-		# Truncate to 64 characters to match maximum database field length.
-		$map_name = substr($map_name,0,61) . "...";
+        # add template value map
+        $valuemaps->{ $map_name }->{ 'mappings' } = [];
+        foreach(keys %{ $node->{ enums } }) {
+            push(@{ $valuemaps->{ $map_name }->{ 'mappings' } }, {
+                'value'     => $node->{ enums }->{ $_ },
+                'newvalue'  => $_
+            });
+        }
 
-	}
-
-
-        $valuemaps->{ $map_name } = $node->{ enums };
-        
-         # Assign value map to template
+         # Assign value map to item
         $item->{ valuemap } = { name => $map_name };
     }    
                     
@@ -500,10 +496,10 @@ sub node_to_item {
 
 =head2 node_to_trapitem
 
-Parameters	: SNMP::MIB::Node   $node
+Parameters  : SNMP::MIB::Node   $node
                   (Hash)            $template
-Returns		: (Hash)            $item
-Description	: Returns a Zabbix SNMP Trap Item hash derived from the
+Returns     : (Hash)            $item
+Description : Returns a Zabbix SNMP Trap Item hash derived from the
                   specified MIB OID
 
 =cut
@@ -571,9 +567,9 @@ sub node_to_trapitem {
 
 =head2 node_is_current
 
-Parameters	: SNMP::MIB::Node   $node
-Returns		: (int)             0|1
-Description	: Returns true if the specified OID is not obsolete
+Parameters  : SNMP::MIB::Node   $node
+Returns     : (int)             0|1
+Description : Returns true if the specified OID is not obsolete
 
 =cut
 sub node_is_current {
@@ -587,9 +583,9 @@ sub node_is_current {
 
 =head2 node_is_valid_scalar
 
-Parameters	: SNMP::MIB::Node   $node
-Returns		: (int)             0|1
-Description	: Returns true if the specified OID is current, readable and
+Parameters  : SNMP::MIB::Node   $node
+Returns     : (int)             0|1
+Description : Returns true if the specified OID is current, readable and
                   defines a valid value type.
 
 =cut
@@ -609,9 +605,9 @@ sub node_is_valid_scalar {
 
 =head2 node_is_valid_trap
 
-Parameters	: SNMP::MIB::Node   $node
-Returns		: (int)             0|1
-Description	: Returns true if the specified OID is an SNMP Trap
+Parameters  : SNMP::MIB::Node   $node
+Returns     : (int)             0|1
+Description : Returns true if the specified OID is an SNMP Trap
 
 =cut
 sub node_is_valid_trap {
@@ -624,9 +620,9 @@ sub node_is_valid_trap {
 
 =head2 node_is_valid_table
 
-Parameters	: SNMP::MIB::Node   $node
-Returns		: (int)             0|1
-Description	: Returns true if the specified OID is a valid table which is
+Parameters  : SNMP::MIB::Node   $node
+Returns     : (int)             0|1
+Description : Returns true if the specified OID is a valid table which is
                   current, readable and contains a single child (row
                   definition)
 
@@ -656,10 +652,10 @@ sub node_is_valid_table {
 
 =head2 build_template
 
-Parameters	: (hash)            $template
+Parameters  : (hash)            $template
                   SNMP::MIB::NODE   $node
-Returns		: (void)
-Description	: Traverses a loaded MIB tree from the specified OID node
+Returns     : (void)
+Description : Traverses a loaded MIB tree from the specified OID node
                   a populates a Zabbix Template hash with items, discovery
                   rules, item prototypes, groups and macros.
 
@@ -780,123 +776,6 @@ sub build_template {
     }
 }
 
-sub export_valuemaps {
-    my ($oid_root) = @_;
-    
-    # Parse MIBs to get a hash of required value maps
-    my $template = {};
-    build_template($template, $oid_root, 0);
-    
-    # Fetch DB connection details from Zabbix server config
-    my ($dbhost, $dbname, $dbschema, $dbport, $dbuser, $dbpassword);
-    $dbhost = 'localhost';
-    $dbport = 5432;
-    $dbname = 'zabbix';
-    $dbpassword = '';
-    if ( -e ZBX_SERVER_CONF ) {
-        open (FH, "<${\ZBX_SERVER_CONF}") or die ("Failed to open ${\ZBX_SERVER_CONF} for reading.");
-        while (my $line = <FH>) {
-            my ($key, $val) = ($line =~ m/^(\w*)=(.*)/);
-            if ($key ) {
-                if ($key eq 'DBHost') {
-                    $dbhost = $val;
-                } elsif ($key eq 'DBName') {
-                    $dbname = $val;
-                } elsif ($key eq 'DBSchema') {
-                    $dbschema = $val;
-                } elsif ($key eq 'DBPort') {
-                    $dbport = $val;
-                } elsif ($key eq 'DBUser') {
-                    $dbuser = $val;
-                } elsif ($key eq 'DBPassword') {
-                    $dbpassword = "$val";
-                }                
-            }
-        }
-        close(FH);
-    } elsif( -e ZBX_WEB_CONF ) {
-        
-    } else {
-        die("No database connection details could be obtained.");
-    }
-    
-    # Create a connection string and connect
-    my $dsn = "DBI:Pg:host=$dbhost;dbname=$dbname;port=$dbport;";
-    my $dbh = DBI->connect($dsn, $dbuser, $dbpassword);
-    $dbh || die($DBI::errstr);
-    
-    my $results;
-    
-    # Get highest valuemap id
-    $results = query($dbh, 'SELECT MAX(valuemapid) AS valuemapid FROM valuemaps');
-    my $valuemapid = @{ $results }[0]->{ valuemapid };
-    
-    # Get highest map id
-    $results = query($dbh, 'SELECT MAX(mappingid) AS mappingid FROM mappings');
-    my $mappingid = @{ $results }[0]->{ mappingid };
-    
-    # Get existings valuemaps
-    $results = query($dbh, 'SELECT * FROM valuemaps');
-    my $existing_maps = {};
-    foreach my $valuemap(@{ $results }) {
-        $existing_maps->{ $valuemap->{ name } } = $valuemap->{ valuemapid };
-    }
-    
-    # Process each map
-    foreach my $map_name (keys %{ $valuemaps }) {
-
-        if (defined($existing_maps->{ $map_name })) {
-            print STDERR "Value map '$map_name' already exists\n";
-            next;
-        }
-        
-        # Insert new map
-        $valuemapid++;
-        insert($dbh, "INSERT INTO valuemaps (valuemapid, name) VALUES ($valuemapid, '$map_name')");
-        print ("Added Value Map '$map_name' with ID $valuemapid\n");
-       
-        # Add mappings
-        foreach my $key (keys %{ $valuemaps->{ $map_name } }) {
-            my $val = $valuemaps->{ $map_name }->{ $key };
-            
-            $mappingid++;
-            insert($dbh, "INSERT INTO mappings (mappingid, valuemapid, value, newvalue) VALUES ($mappingid, $valuemapid, $val, '$key');");
-            print (" - Added mapping '$key' => '$val' with ID $mappingid\n");
-        }
-    }
-
-    # Increment ids for nextid.
-    $valuemapid++;
-    $mappingid++;
-
-    # Now update the tables max ids in the ids table.
-    insert($dbh, "UPDATE ids SET nextid = $valuemapid WHERE table_name = 'valuemaps' AND field_name = 'valuemapid';");
-    insert($dbh, "UPDATE ids SET nextid = $mappingid WHERE table_name = 'mappings' AND field_name = 'mappingid';");
-    
-
-        
-    # Clean up
-    $dbh->disconnect;
-}
-
-sub query {
-    my ($dbh, $sql) = @_;
-    my @results;
-    my $sth = $dbh->prepare($sql);
-    $sth->execute();
-    while(my $row = $sth->fetchrow_hashref()) {
-	push @results, $row;
-    }
-    
-    return \@results;
-}
-
-sub insert {
-    my ($dbh, $sql) = @_;
-    my $sth = $dbh->prepare($sql);
-    $sth->execute();
-}
-
 # Initialize net-snmp
 $SNMP::save_descriptions = 1;
 SNMP::initMib();
@@ -906,20 +785,15 @@ my $oid_root = $SNMP::MIB{ $opts->{ oid } };
 if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     print STDERR "OID $opts->{ oid } not found in MIB tree.\n";
     exit 1;
-}
-
-# Export value maps directly to Zabbix database
-if($opts->{ export_maps }) {
-    export_valuemaps($oid_root);
-}
 
 # Build a Zabbix template
-elsif ($opts->{ template }) {
+} else {
     my $suffix = $opts->{ snmpver } > 2 ? " v$opts->{ snmpver }" : '';
     my $template_name = $opts->{ name } || "Template $oid_root->{ moduleID } - $oid_root->{ label }$suffix";
     my $template        = {
         name            => $template_name,
         template        => $template_name,
+        description     => "Generated by mib2zabbix",
         apptags         => {},
         applications    => [],
         discovery_rules => [],
@@ -928,13 +802,14 @@ elsif ($opts->{ template }) {
         }],
         items           => [],
         macros      => [
+            { macro => '{$MIB2ZABBIX_CMD}', value => $cmd },
             { macro => '{$OID}',            value => "$oid_root->{ objectID }" },
             { macro => '{$OID_PATH}',       value => oid_path($oid_root) },
             { macro => '{$OID_MOD}',        value => $oid_root->{ moduleID } },
             { macro => '{$SNMP_PORT}',      value => $opts->{ snmpport } }
         ]
     };
-    
+
     # Add SNMP connection macros
     if($opts->{ snmpver } < 3) {
         push(@{ $template->{ macros } }, { macro => '{$SNMP_COMM}', value => $opts->{ snmpcomm } });
@@ -949,16 +824,17 @@ elsif ($opts->{ template }) {
     # Convert applications hash to array
     @{ $template->{ applications } } = map { { name => $_ } } keys %{ $template->{ apptags } };
     delete($template->{ apptags });
-    
+
     # Build XML document
     my $time = time();
     my $output = {
-        version     => '2.0',
+        version     => '3.0',
         date        => time2str("%Y-%m-%dT%H:%M:%SZ", $time),
         groups      => $template->{ groups },
         templates   => [$template],
         triggers    => [],
-        graphs      => []
+        graphs      => [],
+        value_maps  => [$valuemaps]
     };
     
     # Output stream
@@ -984,15 +860,13 @@ elsif ($opts->{ template }) {
             'item_prototypes'       => 'item_prototype',
             'trigger_prototypes'    => 'trigger_prototype',
             'graph_prototypes'      => 'graph_prototype',
-            'host_prototypes'       => 'host_prototype'
+            'host_prototypes'       => 'host_prototype',
+            'value_maps'            => 'value_map',
+            'mappings'              => 'mapping'
         }
     );
     
     if ($opts->{ filename }) {
         close $fh;
     }
-}
-
-else {
-    pod2usage();
 }

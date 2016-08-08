@@ -1,33 +1,29 @@
 # mib2zabbix
 
-This Perl script will generate a Zabbix Template in XML format from an OID tree
-in a SNMP MIB file.
+This Perl script will generate a Zabbix v3 Template in XML format from an OID
+tree in a SNMP MIB file.
 
 ### Usage
 
-    mib2zabbix.pl [ -l | -t ] -o <OID> [OPTIONS]...
-
+    mib2zabbix.pl -o <OID> [OPTIONS]...
+        
     Export loaded SNMP MIB OIDs to Zabbix Template XML
 
-        --export-maps           export value maps directly to Zabbix database
-    
-        -t, --template          generate a Zabbix template
-        -f, --filename=PATH     output filename (default: stdout)
-   
-        -N, --name=STRING       template name (default: OID label)
-        -G, --group=STRING      template group (default: 'Templates')
-        -e, --enable-items      enable template items (default: disabled)
-                                * enable with caution *
-    
-        -o, --oid=STRING        OID tree root to export
-    
-        -v, --snmpver=1|2|3     SNMP version (default: 1)
-        -p, --port=PORT         SNMP UDP port number (default: 161)
-
+        -f, --filename=PATH         output filename (default: stdout)
+       
+        -N, --name=STRING           template name (default: OID label)
+        -G, --group=STRING          template group (default: 'Templates')
+        -e, --enable-items          enable all template items (default: disabled)
+        
+        -o, --oid=STRING            OID tree root to export (must start with '.')
+        
+        -v, --snmpver=1|2|3         SNMP version (default: 2)
+        -p, --port=PORT             SNMP UDP port number (default: 161)
+        
     SNMP Version 1 or 2c specific
 
-        -c, --community=STRING  SNMP community string (default: 'public')
-
+        -c, --community=STRING      SNMP community string (default: 'public')
+        
     SNMP Version 3 specific
 
         -L, --level=LEVEL           security level (noAuthNoPriv|authNoPriv|authPriv)
@@ -37,17 +33,20 @@ in a SNMP MIB file.
         -A, --authpass=PASSPHRASE   authentication protocol passphrase
         -x, --privacy=PROTOCOL      privacy protocol (DES|AES)
         -X, --privpass=PASSPHRASE   privacy passphrase
-    
-        --check-delay=SECONDS   check interval in seconds (default: 300)
-        --disc-delay=SECONDS    discovery interval in seconds (default: 86400)
-        --history=DAYS          history retention in days (default: 365)
-        --trends=DAYS           trends retention in days (default: 3650)
-    
-        -h, --help              print this message
+
+    Zabbix item configuration
+
+        --check-delay=SECONDS       check interval in seconds (default: 60)
+        --disc-delay=SECONDS        discovery interval in seconds (default: 3600)
+        --history=DAYS              history retention in days (default: 7)
+        --trends=DAYS               trends retention in days (default: 365)
+        
+        -h, --help                  print this message
 
 ### Requirements
 
-* Perl v5+
+* Zabbix v3+
+* Perl v5
 * Pod::Usage
 * XML::Simple
 * Net-SNMP
@@ -55,11 +54,14 @@ in a SNMP MIB file.
 
 ### Translations
 
+This table describes how MIB elements are translated into Zabbix template
+elements:
+
 * Scalar OID -> Zabbix SNMP Item
 * Table OID -> Zabbix SNMP Discovery Rule
 * Table Column OID -> Zabbix Discovery Prototype
 * Trap/Notification OID -> Zabbix SNMP Trap Item 
-* OID Enums -> Zabbix Value Map
+* OID Enums -> Zabbix Value Maps
 
 ### License
 
