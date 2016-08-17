@@ -54,8 +54,7 @@ tree in a SNMP MIB file.
 
 ### Installation
 
-The following packages satisfy the runtime requirements of the script on the
-associated operating systems:
+Install from GitHub:
 
     # install prerequisites on Ubuntu: 
     apt-get install perl libxml-simple-perl libsnmp-perl

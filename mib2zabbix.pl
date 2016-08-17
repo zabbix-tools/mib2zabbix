@@ -73,7 +73,7 @@ http://www.webnms.com/snmp/help/snmpapi/snmpv3/table_handling/snmptables_basics.
 =cut
 
 use strict;
-use warnings;
+#use warnings;
 
 use Cwd 'abs_path';
 use Data::Dumper;
@@ -405,7 +405,43 @@ sub node_to_item {
     $item->{ name } = $node->{ label };
     $item->{ snmp_oid } = $node->{ objectID };
     if ($node->{ units }) {
-        $item->{ units } = $node->{ units };
+        # Convert unit to Zabbix postfix
+        # See 'Units' section of https://www.zabbix.com/documentation/3.0/manual/config/items/item
+        if ($node->{ units } =~ /^seconds$/) {
+            $item->{ units } = 's';        
+        } elsif ($node->{ units } =~ /^(hundreds of seconds)$/i) {
+            $item->{ units } = 's';
+            $item->{ multiplier } = '1';
+            $item->{ formula } = '100';
+        } elsif ($node->{ units } =~ /^(milliseconds|milli-seconds)$/i) {
+            $item->{ units } = 's';
+            $item->{ multiplier } = '1';
+            $item->{ formula } = '.001';
+        } elsif ($node->{ units } =~ /^microseconds$/i) {
+            $item->{ units } = 's';
+            $item->{ multiplier } = '1';
+            $item->{ formula } = '.000001';
+        } elsif ($node->{ units } =~ /^(octets|bytes)$/i) { 
+            $item->{ units } = 'B'; 
+        } elsif ($node->{ units } =~ /^(k-octets|kbytes|kb)$/i) {
+            $item->{ units } = 'B';
+            $item->{ multiplier } = '1';
+            $item->{ formula } = '.001';
+        } elsif ($node->{ units } =~ /^(bits per second)$/i) {
+            $item->{ units } = 'b';
+        } elsif ($node->{ units } =~ /^(kbps|kilobits per second)$/i) {
+            $item->{ units } = 'b';
+            $item->{ multiplier } = '1';
+            $item->{ formula } = '.001';
+        } elsif ($node->{ units } =~ /^percent$/i) {
+            $item->{ units } = '%';
+        } elsif ($node->{ units } =~ /\/s$/i) {
+            # truncate /s (/sec will be added later)
+            $item->{ units } = substr($node->{ units }, 0, -2) . "/sec";
+        } else {
+            # default to original
+            $item->{ units } = $node->{ units };
+        }
     }
     
     # Merge in item defaults
@@ -425,10 +461,17 @@ sub node_to_item {
         }
     }
     
-    # Set storage type
+    # Set storage type to Delta for MIB counter types
     if ( $node->{ type } ~~ ['COUNTER', 'COUNTER32', 'COUNTER64']) {
         $item->{ delta } = ZBX_ITEM_STORE_SPEED;
-        $item->{ units } .= '/sec';
+
+        if ($item->{ units } =~ /^s$/) {
+            $item->{ units } = '/sec';
+        } elsif ($item->{ units } =~ /^b$/i) {
+            $item->{ units } .= 'ps';
+        } else {
+            $item->{ units } .= '/sec';
+        }
     }
     
     # Translate SNMP Ticks
@@ -466,8 +509,8 @@ sub node_to_item {
 
          # Assign value map to item
         $item->{ valuemap } = { name => $map_name };
-    }    
-                    
+    }            
+
     return $item;
 }
 
