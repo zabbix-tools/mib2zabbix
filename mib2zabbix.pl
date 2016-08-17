@@ -259,7 +259,7 @@ my %item_base_template = (
     port                    => '{$SNMP_PORT}',                                              # Use macro for SNMP UDP Port
     privatekey              => '',
     publickey               => '',
-    snmp_community          => $opts->{ snmpver } < 3 ? '{$SNMP_COMM}' : '',                # Use macro for SNMP Community string
+    snmp_community          => $opts->{ snmpver } < 3 ? '{$SNMP_COMMUNITY}' : '',           # Use macro for SNMP Community string
     snmpv3_authpassphrase   => $opts->{ snmpver } == 3 ? '{$SNMP_AUTHPASS}' : '',           # Use macro for SNMPv3 Authentication passphrase
     snmpv3_authprotocol     => $opts->{ snmpver } == 3 ? $opts->{ v3auth_protocol } : '0',
     snmpv3_contextname      => $opts->{ snmpver } == 3 ? '{$SNMP_CONTEXT}' : '',            # Use macro for SNMPv3 context name
@@ -705,18 +705,38 @@ sub build_template {
             my $disc_rule = {};
             $disc_rule = node_to_item($row, \%disc_rule_template);
             
-            # Update fields
-            $disc_rule->{ key } = "$table->{ moduleID }.$disc_rule->{ name }";
+            # Update discovery rule name
             $disc_rule->{ name } = "$disc_rule->{ name } Discovery";
+            $disc_rule->{ snmp_oid } = "discovery[";
+
+            # find any *Descr column
+            my $index = '{#SNMPINDEX}';
+            foreach my $column(@{ $row->{ children } }) {
+                if (node_is_valid_scalar($column)) {
+                    if($column->{ label } =~ m/Descr$/) {
+                        $disc_rule->{ snmp_oid } .= "{#SNMPVALUE},$column->{ objectID },";
+                        $index = '{#SNMPVALUE}';
+                    }
+                }
+            }
+
+            # Define macros in discovery key up to 255 chars
+            # See: https://www.zabbix.com/documentation/3.0/manual/discovery/low_level_discovery#discovery_of_snmp_oids
+            foreach my $column(@{ $row->{ children } }) {
+                if (node_is_valid_scalar($column)) {
+                    my $new_snmp_oid = $disc_rule->{ snmp_oid } . "{#" . uc($column->{ label }) . "}," . $column->{ objectID } . ",";
+                    if (length($new_snmp_oid) <= 255) {
+                        $disc_rule->{ snmp_oid } = $new_snmp_oid;
+                    }
+                }
+            }
+            $disc_rule->{ snmp_oid } = substr($disc_rule->{ snmp_oid }, 0, -1) . "]";
 
             # Fetch an arbitrary column OID for Zabbix to use for discovery
             my $index_oid = $row->{ children }[0];
             if (!defined($index_oid)) {
                 print STDERR "No index found for table $table->{ moduleID}::$table->{ label } ($table->{ objectID })\n";
             } else {
-                # Append key ID to path
-                $disc_rule->{ snmp_oid } = "$index_oid->{ objectID }";
-                
                 # Remove unrequired fields
                 delete($disc_rule->{ applications });
                 delete($disc_rule->{ data_type });
@@ -728,8 +748,8 @@ sub build_template {
                 foreach my $column(@{ $row->{ children } }) {
                     if (node_is_valid_scalar($column)) {
                         if (my $proto = node_to_item($column, \%item_proto_template)) {
-                            $proto->{ name } = "$proto->{ name }.{#SNMPINDEX}";
-                            $proto->{ key } = "$disc_rule->{ key }.$column->{ label }\[{#SNMPINDEX}]";
+                            $proto->{ name } = "$proto->{ name } for $index";
+                            $proto->{ key } = "$column->{ label }\[$index]";
                             $proto->{ snmp_oid } = "$proto->{ snmp_oid }.{#SNMPINDEX}";
                             
                             # Add item applications to template application list            
@@ -793,7 +813,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
 
     # Add SNMP connection macros
     if($opts->{ snmpver } < 3) {
-        push(@{ $template->{ macros } }, { macro => '{$SNMP_COMM}', value => $opts->{ snmpcomm } });
+        push(@{ $template->{ macros } }, { macro => '{$SNMP_COMMUNITY}', value => $opts->{ snmpcomm } });
     } elsif($opts->{ snmpver } == 3) {
         push(@{ $template->{ macros } }, { macro => '{$SNMP_USER}',      value => $opts->{ v3user } });
         push(@{ $template->{ macros } }, { macro => '{$SNMP_CONTEXT}',   value => $opts->{ v3context } });
