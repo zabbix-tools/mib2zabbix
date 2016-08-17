@@ -17,7 +17,7 @@ Export loaded SNMP MIB OIDs to Zabbix Template XML
     -G, --group=STRING          template group (default: 'Templates')
     -e, --enable-items          enable all template items (default: disabled)
     
-    -o, --oid=STRING            OID tree root to export (must start with '.')
+    -o, --oid=STRING            OID tree root to export
     
     -v, --snmpver=1|2|3         SNMP version (default: 2)
     -p, --port=PORT             SNMP UDP port number (default: 161)
@@ -758,6 +758,10 @@ $SNMP::save_descriptions = 1;
 SNMP::initMib();
 
 # Verify the specified OID exists
+if ($opts->{ oid } !~ m/^\./) {
+ $opts->{ oid } = "." . $opts->{ oid }
+}
+
 my $oid_root = $SNMP::MIB{ $opts->{ oid } };
 if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     print STDERR "OID $opts->{ oid } not found in MIB tree.\n";
