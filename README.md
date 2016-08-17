@@ -57,7 +57,13 @@ tree in a SNMP MIB file.
 The following packages satisfy the runtime requirements of the script on the
 associated operating systems:
 
-* Ubuntu: `$ apt-get install perl libxml-simple-perl libsnmp-perl'
+    # install prerequisites on Ubuntu: 
+    apt-get install perl libxml-simple-perl libsnmp-perl
+
+    # assumes ~/bin exists and is in $PATH, so adjust accordingly!
+    curl -sL -o ~/bin/mib2zabbix https://raw.githubusercontent.com/cavaliercoder/mib2zabbix/master/mib2zabbix.pl
+    chmod +x ~/bin/mib2zabbix
+
 
 ### Translations
 
