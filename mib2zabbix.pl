@@ -759,7 +759,7 @@ SNMP::initMib();
 
 # Verify the specified OID exists
 if ($opts->{ oid } !~ m/^\./) {
- $opts->{ oid } = "." . $opts->{ oid }
+    $opts->{ oid } = "." . $opts->{ oid }
 }
 
 my $oid_root = $SNMP::MIB{ $opts->{ oid } };
@@ -842,7 +842,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
             'trigger_prototypes'    => 'trigger_prototype',
             'graph_prototypes'      => 'graph_prototype',
             'host_prototypes'       => 'host_prototype',
-            'value_maps'            => 'value_map',
+            'value_maps'            => %{ $valuemaps } ? 'value_map' : undef,
             'mappings'              => 'mapping'
         }
     );
