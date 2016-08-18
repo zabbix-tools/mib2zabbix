@@ -36,7 +36,7 @@ tree in a SNMP MIB file.
 
     Zabbix template version
 
-    -z, --zabbix_ver=2|3        Zabbix Template Schema Version (default: 3)
+    -z, --zabbix_ver=2|3            Zabbix Template Schema Version (default: 3)
 
     Zabbix item configuration
 
