@@ -52,7 +52,7 @@ tree in a SNMP MIB file.
 * Zabbix v2.4, 3+
 * Perl v5
 * Pod::Usage
-* XML::Simple (2.20)
+* XML::Simple
 * Net-SNMP
 * Correctly configured [MIB files](http://net-snmp.sourceforge.net/tutorial/tutorial-5/commands/mib-options.html)
 
