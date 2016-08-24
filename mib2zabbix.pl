@@ -57,7 +57,7 @@ Help
 B<mib2zabbix.pl> will export a loaded MIB tree into a Zabbix Template starting
 from the OID root specified.
 
-Requires: Zabbix v2.4 or 3, Perl v5, Pod::Usage, XML::Simple 2.20, Net-SNMP
+Requires: Zabbix v2.4 or 3, Perl v5, Pod::Usage, XML::Simple, Net-SNMP
 
 =head1 AUTHOR
 
