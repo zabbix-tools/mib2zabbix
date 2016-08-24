@@ -921,21 +921,38 @@ sub build_template {
                 }
             }
 
+            if ( $opts->{zabbix_ver} == 3 ) {
+
 # Define macros in discovery key up to 255 chars
 # See: https://www.zabbix.com/documentation/3.0/manual/discovery/low_level_discovery#discovery_of_snmp_oids
-            foreach my $column ( @{ $row->{children} } ) {
-                if ( node_is_valid_scalar($column) ) {
-                    my $new_snmp_oid =
-                        $disc_rule->{snmp_oid} . "{#"
-                      . uc( $column->{label} ) . "},"
-                      . $column->{objectID} . ",";
-                    if ( length($new_snmp_oid) <= 255 ) {
-                        $disc_rule->{snmp_oid} = $new_snmp_oid;
+                foreach my $column ( @{ $row->{children} } ) {
+                    if ( node_is_valid_scalar($column) ) {
+                        my $new_snmp_oid =
+                            $disc_rule->{snmp_oid} . "{#"
+                          . uc( $column->{label} ) . "},"
+                          . $column->{objectID} . ",";
+                        if ( length($new_snmp_oid) <= 255 ) {
+                            $disc_rule->{snmp_oid} = $new_snmp_oid;
+                        }
+                    }
+                }
+                $disc_rule->{snmp_oid} =
+                  substr( $disc_rule->{snmp_oid}, 0, -1 ) . "]";
+            }
+            else {
+
+                # find entry index colum
+                foreach my $column ( @{ $row->{children} } ) {
+                    if ( node_is_valid_scalar($column) ) {
+                        if ( $column->{label} =~ m/Index$/ ) {
+
+                            #print STDERR
+#"Warning: $row->{ moduleID }:: $row->{ label }:: $column->{label} $column->{ objectID }, Index Found\n";
+                            $disc_rule->{snmp_oid} = $column->{objectID};
+                        }
                     }
                 }
             }
-            $disc_rule->{snmp_oid} =
-              substr( $disc_rule->{snmp_oid}, 0, -1 ) . "]";
 
             # Fetch an arbitrary column OID for Zabbix to use for discovery
             my $index_oid = $row->{children}[0];
@@ -967,13 +984,28 @@ sub build_template {
                             $proto->{applications} = [ { name => $appname } ];
                             $template->{apptags}->{$appname} = 1;
 
-                            push( @{ $disc_rule->{item_prototypes} }, $proto );
+                            if ( $opts->{zabbix_ver} == 3 ) {
+                                push(
+                                    @{ $disc_rule->{item_prototypes} },
+                                    $proto
+                                );
+                            }
+                            else {
+
+                                if ( $proto->{name} !~ m/Index/ ) {
+                                    push(
+                                        @{ $disc_rule->{item_prototypes} },
+                                        $proto
+                                    );
+                                }
+                            }
                         }
                     }
                 }
 
                 # Add discovery rule to template
                 push( @{ $template->{discovery_rules} }, $disc_rule );
+
             }
         }
     }
