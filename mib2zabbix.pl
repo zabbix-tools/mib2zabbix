@@ -4,22 +4,16 @@
 mib2zabbix.pl - SNMP MIB to Zabbix Template
 =head1 SYNOPSIS
 mib2zabbix.pl -o <OID> [OPTIONS]...
-
 Export loaded SNMP MIB OIDs to Zabbix Template XML
     -f, --filename=PATH         output filename (default: stdout)
-
     -N, --name=STRING           template name (default: OID label)
     -G, --group=STRING          template group (default: 'Templates')
     -e, --enable-items          enable all template items (default: disabled)
-
     -o, --oid=STRING            OID tree root to export
-
     -v, --snmpver=1|2|3         SNMP version (default: 2)
     -p, --port=PORT             SNMP UDP port number (default: 161)
-
 SNMP Version 1 or 2c specific
     -c, --community=STRING      SNMP community string (default: 'public')
-
 SNMP Version 3 specific
     -L, --level=LEVEL           security level (noAuthNoPriv|authNoPriv|authPriv)
     -n, --context=CONTEXT       context name
@@ -39,7 +33,6 @@ Zabbix item configuration
     --trends=DAYS               trends retention in days (default: 365)
 
 Help
-
     -h, --help                  print this message
 =head1 DESCRIPTION
 B<mib2zabbix.pl> will export a loaded MIB tree into a Zabbix Template starting
@@ -212,8 +205,7 @@ GetOptions(
     'x|privacy=s'           => \$opts->{ v3sec_protocol },  # SNMPv3 Privacy protocol
     'X|privpass=s'          => \$opts->{ v2sec_pass},       # SNMPv3 Privacy passphrase
 
-    'z|zabbix_ver=i' 		=> \$opts->{zabbix_ver},      	# Zabbix version
-
+    'z|zabbix_ver=i' 		=> \$opts->{ zabbix_ver},      	# Zabbix version
 
     'check-delay=i'         => \$opts->{ delay },           # Update interval in seconds
     'disc-delay=i'          => \$opts->{ disc_delay },      # Update interval in seconds
@@ -293,6 +285,7 @@ my %item_template_v2 = (
     multiplier              => '0',                     # Enable multiplier
     trends                  => $opts->{ trends },       # Trends retention in days
     units                   => '',
+	valuemap                => ''
 );
 
 if ( $opts->{zabbix_ver} == 3 ) {
@@ -564,6 +557,7 @@ sub node_to_item {
             # Assign value map to item
             $item->{valuemap} = { name => $map_name };
         }
+
     }
 
     return $item;
@@ -869,7 +863,6 @@ sub build_template {
                             else {
 								# No need for Indexer to be added in Zabbix 2.4
 								if ( $proto->{name} !~ m/Index/ ) {
-
 								push(@{ $disc_rule->{ item_prototypes } }, $proto);
                                 }
                             }
@@ -941,6 +934,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     # Convert applications hash to array
     @{ $template->{ applications } } = map { { name => $_ } } keys %{ $template->{ apptags } };
     delete($template->{ apptags });
+
 
     # Build XML document
     my $time = time();
@@ -1018,6 +1012,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
             }
         );
     }
+
     if ($opts->{ filename }) {
         close $fh;
     }
