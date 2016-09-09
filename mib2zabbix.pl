@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 =pod
 
 =head1 NAME
@@ -833,7 +834,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
 # Build a Zabbix template
 } else {
     my $suffix = $opts->{ snmpver } > 2 ? " v$opts->{ snmpver }" : '';
-    my $template_name = $opts->{ name } || "Template $oid_root->{ moduleID } - $oid_root->{ label }$suffix";
+    my $template_name = $opts->{ name } || "Template SNMP $oid_root->{ moduleID } - $oid_root->{ label }$suffix";
     my $template        = {
         name            => $template_name,
         template        => $template_name,
