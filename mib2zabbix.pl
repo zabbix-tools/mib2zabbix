@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 =pod
+
 =head1 NAME
 mib2zabbix.pl - SNMP MIB to Zabbix Template
 =head1 SYNOPSIS
@@ -400,6 +401,7 @@ my %item_proto_template = (
 my $valuemaps = {};
 
 =head2 utf8_santize
+
 Parameters      : (string) $malformed_utf8
 Returns         : (string) $wellformed_utf8
 Description     : Returns a sanitized UTF8 string, removing incompatable characters
