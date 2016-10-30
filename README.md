@@ -59,6 +59,9 @@ Install from GitHub:
     # install prerequisites on Ubuntu: 
     apt-get install perl libxml-simple-perl libsnmp-perl
 
+    # install prerequisites on RHEL family:
+    yum install "perl(SNMP)" "perl(XML::Simple)"
+
     # assumes ~/bin exists and is in $PATH, so adjust accordingly!
     curl -sL -o ~/bin/mib2zabbix https://raw.githubusercontent.com/cavaliercoder/mib2zabbix/master/mib2zabbix.pl
     chmod +x ~/bin/mib2zabbix
