@@ -3,32 +3,20 @@
 =pod
 
 =head1 NAME
-
 mib2zabbix.pl - SNMP MIB to Zabbix Template
-
 =head1 SYNOPSIS
-
 mib2zabbix.pl -o <OID> [OPTIONS]...
-    
 Export loaded SNMP MIB OIDs to Zabbix Template XML
-
     -f, --filename=PATH         output filename (default: stdout)
-   
     -N, --name=STRING           template name (default: OID label)
     -G, --group=STRING          template group (default: 'Templates')
     -e, --enable-items          enable all template items (default: disabled)
-    
     -o, --oid=STRING            OID tree root to export
-    
     -v, --snmpver=1|2|3         SNMP version (default: 2)
     -p, --port=PORT             SNMP UDP port number (default: 161)
-    
 SNMP Version 1 or 2c specific
-
     -c, --community=STRING      SNMP community string (default: 'public')
-    
 SNMP Version 3 specific
-
     -L, --level=LEVEL           security level (noAuthNoPriv|authNoPriv|authPriv)
     -n, --context=CONTEXT       context name
     -u, --username=USERNAME     security name
@@ -37,40 +25,36 @@ SNMP Version 3 specific
     -x, --privacy=PROTOCOL      privacy protocol (DES|AES)
     -X, --privpass=PASSPHRASE   privacy passphrase
 
-Zabbix item configuration
+Zabbix template version
+    -z, --zabbix_ver=2|3        Zabbix Template Schema Version (default: 3)
 
+Zabbix item configuration
     --check-delay=SECONDS       check interval in seconds (default: 60)
     --disc-delay=SECONDS        discovery interval in seconds (default: 3600)
     --history=DAYS              history retention in days (default: 7)
     --trends=DAYS               trends retention in days (default: 365)
-    
+
+Help
     -h, --help                  print this message
-
 =head1 DESCRIPTION
-
 B<mib2zabbix.pl> will export a loaded MIB tree into a Zabbix Template starting
 from the OID root specified.
-
-Requires: Zabbix v3, Perl v5, Pod::Usage, XML::Simple, Net-SNMP
-
+Requires: Zabbix v2.4 or 3, Perl v5, Pod::Usage, XML::Simple, Net-SNMP
 =head1 AUTHOR
-
 Ryan Armstrong <ryan@cavaliercoder.com>
-
+Steven Yu <steven@wordofeternity.org> -- Zabbix v2.4 support
 =head1 SEE ALSO
-
 Guidelines for Authors and Reviewers of MIB Documents
 https://www.ietf.org/rfc/rfc4181.txt
-
 Next Generation Structure of Management Information (SMIng) Mappings to the
 Simple Network Management Protocol (SNMP)
 https://tools.ietf.org/html/rfc3781
-
 SNMP Table Basics
 http://www.webnms.com/snmp/help/snmpapi/snmpv3/table_handling/snmptables_basics.html
-
+Zabbix Template Schema
+v2.4    - https://www.zabbix.com/documentation/2.4/manual/xml_export_import/hosts
+v3      - https://www.zabbix.com/documentation/3.0/manual/xml_export_import/hosts
 =head1 SUBROUTINES
-
 =cut
 
 use strict;
@@ -192,7 +176,8 @@ my $opts =  {
     v3auth_protocol     => 'md5',
     v3auth_pass         => '',
     v3sec_protocol      => 'des',
-    v3sec_pass          => ''
+    v3sec_pass          => '',
+    zabbix_ver      	=> 3
 };
 
 # Capture calling args
@@ -221,7 +206,9 @@ GetOptions(
     'A|authpass=s'          => \$opts->{ v3auth_pass },     # SNMPv3 Authentication passphrase
     'x|privacy=s'           => \$opts->{ v3sec_protocol },  # SNMPv3 Privacy protocol
     'X|privpass=s'          => \$opts->{ v2sec_pass},       # SNMPv3 Privacy passphrase
-    
+
+    'z|zabbix_ver=i' 		=> \$opts->{ zabbix_ver},      	# Zabbix version
+
     'check-delay=i'         => \$opts->{ delay },           # Update interval in seconds
     'disc-delay=i'          => \$opts->{ disc_delay },      # Update interval in seconds
     'history=i'             => \$opts->{ history },         # History retention in days
@@ -272,8 +259,10 @@ my %item_base_template = (
     username                => '',
 );
 
-# Item template for standard Template items
-my %item_template = (
+my %item_template;
+
+# Item template for standard Template items for Zabbix v3
+my %item_template_v3 = (
     data_type               => '0',
     delay                   => $opts->{ delay },        # Update internal seconds
     delta                   => '0',                     # Change delta
@@ -286,7 +275,27 @@ my %item_template = (
     valuemap                => '',
     logtimefmt              => '',
 );
-%item_template = (%item_base_template, %item_template);
+
+# Item template for standard Template items for Zabbix v2
+my %item_template_v2 = (
+    data_type               => '0',
+    delay                   => $opts->{ delay },        # Update internal seconds
+    delta                   => '0',                     # Change delta
+    formula                 => '1',                     # Multiplier factor
+    history                 => $opts->{ history },      # History retention in days
+    inventory_link          => '0',
+    multiplier              => '0',                     # Enable multiplier
+    trends                  => $opts->{ trends },       # Trends retention in days
+    units                   => '',
+	valuemap                => ''
+);
+
+if ( $opts->{zabbix_ver} == 3 ) {
+    %item_template = ( %item_base_template, %item_template_v3 );
+}
+else {
+    %item_template = ( %item_base_template, %item_template_v2 );
+}
 
 # Discovery rule template
 my %disc_rule_template = (
@@ -306,8 +315,8 @@ my %disc_rule_template = (
 );
 %disc_rule_template = (%item_base_template, %disc_rule_template);
 
-# SNMP Trap template
-my %trap_template = (
+# SNMP Trap template for Zabbix v3
+my %trap_template_v3 = (
     allowed_hosts           => '',    
     applications            => [],    
     authtype                => 0,    
@@ -345,6 +354,44 @@ my %trap_template = (
     valuemap                => ''
 );
 
+# SNMP Trap template for Zabbix v2
+my %trap_template_v2 = (
+    allowed_hosts           => '',    
+    applications            => [],    
+    authtype                => 0,    
+    data_type               => 0,    
+    delay                   => '0',
+    delay_flex              => '',    
+    delta                   => 0,    
+    description             => '',    
+    formula                 => 1,    
+    history                 => $opts->{ history },
+    inventory_link          => 0,    
+    ipmi_sensor             => '',
+    logtimefmt              => 'hh:mm:ss dd/MM/yyyy',
+    multiplier              => '0',
+    params                  => '',    
+    password                => '',    
+    port                    => '',    
+    privatekey              => '',    
+    publickey               => '',   
+    snmp_community          => '',    
+    snmp_oid                => '',
+    snmpv3_authpassphrase   => '',
+    snmpv3_authprotocol     => 0,    
+    snmpv3_contextname      => '',
+    snmpv3_privpassphrase   => '',    
+    snmpv3_privprotocol     => 0,    
+    snmpv3_securitylevel    => 0,
+    snmpv3_securityname     => '',    
+    status                  => ($opts->{ enableitems } ? ZBX_ITEM_ENABLED : ZBX_ITEM_DISABLED),
+    trends                  => $opts->{ trends },
+    type                    => ZBX_ITEM_TYPE_SNMPTRAP,
+    units                   => '',    
+    username                => '',    
+    value_type              => ZBX_VAL_TYPE_LOG
+);
+
 # Item prototype template
 my %item_proto_template = (
     application_prototypes  => undef,
@@ -359,7 +406,6 @@ my $valuemaps = {};
 Parameters      : (string) $malformed_utf8
 Returns         : (string) $wellformed_utf8
 Description     : Returns a sanitized UTF8 string, removing incompatable characters
-
 =cut
 sub utf8_sanitize {
     my ($malformed_utf8) = @_;
@@ -369,12 +415,10 @@ sub utf8_sanitize {
 }
 
 =head2 oid_path
-
 Parameters  : SNMP::MIB::Node   $oid
 Returns     : (String) $oid_path
 Description : Returns the fully qualified textual path of a MIB node by
                   traversing the node's parents.
-
 =cut
 sub oid_path {
     my ($oid) = @_;
@@ -389,12 +433,10 @@ sub oid_path {
 }
 
 =head2 node_to_item
-
 Parameters  : SNMP::MIB::Node   $node
                   (Hash)            $template
 Returns     : (Hash)            $item
 Description : Returns a Zabbix Item hash derived from the specified MIB OID
-
 =cut
 sub node_to_item {
     my ($node, $template) = @_;
@@ -490,7 +532,8 @@ sub node_to_item {
     }
     
     # Process value maps
-    if (scalar keys % {$node->{ enums } }) {
+    if ( $opts->{zabbix_ver} == 3 ) {
+         if (scalar keys % {$node->{ enums } }) {
         my $map_name = "$node->{ moduleID }::$node->{ label }";
 
         # If the map_name is longer than 64 characters truncate to 64 characters
@@ -510,23 +553,36 @@ sub node_to_item {
 
          # Assign value map to item
         $item->{ valuemap } = { name => $map_name };
-    }            
+        }
+        else {
+            my $map_name = "$node->{ moduleID }::$node->{ label }";
+
+            # Assign value map to item
+            $item->{valuemap} = { name => $map_name };
+        }
+
+    }
 
     return $item;
 }
 
 =head2 node_to_trapitem
-
 Parameters  : SNMP::MIB::Node   $node
                   (Hash)            $template
 Returns     : (Hash)            $item
 Description : Returns a Zabbix SNMP Trap Item hash derived from the
                   specified MIB OID
-
 =cut
 sub node_to_trapitem {
     my ($node, $template) = @_;
-    $template = $template || \%trap_template;
+	
+    if ( $opts->{zabbix_ver} == 3 ) {
+
+        $template = $template || \%trap_template_v3;
+    }
+    else {
+        $template = $template || \%trap_template_v2;
+    }
     
     # Create item hash
     my $item = { %{ $template } };
@@ -587,11 +643,9 @@ sub node_to_trapitem {
 }
 
 =head2 node_is_current
-
 Parameters  : SNMP::MIB::Node   $node
 Returns     : (int)             0|1
 Description : Returns true if the specified OID is not obsolete
-
 =cut
 sub node_is_current {
     my ($node) = @_;
@@ -603,12 +657,10 @@ sub node_is_current {
 }
 
 =head2 node_is_valid_scalar
-
 Parameters  : SNMP::MIB::Node   $node
 Returns     : (int)             0|1
 Description : Returns true if the specified OID is current, readable and
                   defines a valid value type.
-
 =cut
 sub node_is_valid_scalar {
     my ($node) = @_;
@@ -625,11 +677,9 @@ sub node_is_valid_scalar {
 }
 
 =head2 node_is_valid_trap
-
 Parameters  : SNMP::MIB::Node   $node
 Returns     : (int)             0|1
 Description : Returns true if the specified OID is an SNMP Trap
-
 =cut
 sub node_is_valid_trap {
     my ($node) = @_;
@@ -640,13 +690,11 @@ sub node_is_valid_trap {
 }
 
 =head2 node_is_valid_table
-
 Parameters  : SNMP::MIB::Node   $node
 Returns     : (int)             0|1
 Description : Returns true if the specified OID is a valid table which is
                   current, readable and contains a single child (row
                   definition)
-
 =cut
 sub node_is_valid_table {
     my ($node) = @_;
@@ -672,14 +720,12 @@ sub node_is_valid_table {
 }
 
 =head2 build_template
-
 Parameters  : (hash)            $template
                   SNMP::MIB::NODE   $node
 Returns     : (void)
 Description : Traverses a loaded MIB tree from the specified OID node
                   a populates a Zabbix Template hash with items, discovery
                   rules, item prototypes, groups and macros.
-
 =cut
 sub build_template {
     my ($template, $node) = @_;
@@ -764,17 +810,31 @@ sub build_template {
                 }
             }
 
-            # Define macros in discovery key up to 255 chars
+            if ( $opts->{zabbix_ver} == 3 ) {   
+			# Define macros in discovery key up to 255 chars
             # See: https://www.zabbix.com/documentation/3.0/manual/discovery/low_level_discovery#discovery_of_snmp_oids
             foreach my $column(@{ $row->{ children } }) {
                 if (node_is_valid_scalar($column)) {
                     my $new_snmp_oid = $disc_rule->{ snmp_oid } . "{#" . uc($column->{ label }) . "}," . $column->{ objectID } . ",";
                     if (length($new_snmp_oid) <= 255) {
                         $disc_rule->{ snmp_oid } = $new_snmp_oid;
+                        }
+                    }
+                }
+                 $disc_rule->{ snmp_oid } = substr($disc_rule->{ snmp_oid }, 0, -1) . "]";
+			}
+            else {
+			# find entry index colum
+                foreach my $column ( @{ $row->{children} } ) {
+                    if ( node_is_valid_scalar($column) ) {
+                        if ( $column->{label} =~ m/Index$/ ) {
+							#print STDERR
+							#"Warning: $row->{ moduleID }:: $row->{ label }:: $column->{label} $column->{ objectID }, Index Found\n";
+                            $disc_rule->{snmp_oid} = $column->{objectID};
+                        }
                     }
                 }
             }
-            $disc_rule->{ snmp_oid } = substr($disc_rule->{ snmp_oid }, 0, -1) . "]";
 
             # Fetch an arbitrary column OID for Zabbix to use for discovery
             my $index_oid = $row->{ children }[0];
@@ -799,8 +859,16 @@ sub build_template {
                             # Add item applications to template application list            
                             $proto->{ applications } = [{ name => $appname }];
                             $template->{ apptags }->{ $appname } = 1;
-                            
-                            push(@{ $disc_rule->{ item_prototypes } }, $proto);
+
+                            if ( $opts->{zabbix_ver} == 3 ) {
+                                push(@{ $disc_rule->{ item_prototypes } }, $proto);
+                            }
+                            else {
+								# No need for Indexer to be added in Zabbix 2.4
+								if ( $proto->{name} !~ m/Index/ ) {
+								push(@{ $disc_rule->{ item_prototypes } }, $proto);
+                                }
+                            }
                         }
                     }
                 }
@@ -870,9 +938,12 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     @{ $template->{ applications } } = map { { name => $_ } } keys %{ $template->{ apptags } };
     delete($template->{ apptags });
 
+
     # Build XML document
     my $time = time();
-    my $output = {
+
+    # version 3
+    my $output_v3 = {
         version     => '3.0',
         date        => time2str("%Y-%m-%dT%H:%M:%SZ", $time),
         groups      => $template->{ groups },
@@ -881,7 +952,17 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
         graphs      => [],
         value_maps  => [$valuemaps]
     };
-    
+
+    # version 2
+    my $output_v2 = {
+        version   	=> '2.0',
+        date      	=> time2str( "%Y-%m-%dT%H:%M:%SZ", $time ),
+        groups    	=> $template->{groups},
+        templates 	=> [$template],
+        triggers  	=> [],
+        graphs    	=> []
+    };
+
     # Output stream
     my $fh = *STDOUT;
     if ($opts->{ filename }) {
@@ -889,7 +970,9 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     }    
     
     # Output XML
-    XMLout($output,
+
+    if ( $opts->{zabbix_ver} == 3 ) {
+        XMLout($output_v3,
         OutputFile      => \$fh,
         XMLDecl         => "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
         RootName        => 'zabbix_export',
@@ -908,9 +991,31 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
             'host_prototypes'       => 'host_prototype',
             'value_maps'            => %{ $valuemaps } ? 'value_map' : undef,
             'mappings'              => 'mapping'
-        }
-    );
-    
+            }
+        );
+    }
+    else {
+        XMLout($output_v2,
+		OutputFile    => \$fh,
+		XMLDecl       => "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+		RootName        => 'zabbix_export',
+        NoAttr          => 1,
+        SuppressEmpty   => undef,
+        GroupTags       => {
+            'applications'          => 'application',
+            'groups'                => 'group',
+            'templates'             => 'template',
+            'items'                 => 'item',
+            'macros'                => 'macro',
+            'discovery_rules'       => 'discovery_rule',
+            'item_prototypes'       => 'item_prototype',
+            'trigger_prototypes'    => 'trigger_prototype',
+            'graph_prototypes'      => 'graph_prototype',
+            'host_prototypes'       => 'host_prototype'
+            }
+        );
+    }
+
     if ($opts->{ filename }) {
         close $fh;
     }

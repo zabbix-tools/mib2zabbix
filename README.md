@@ -34,6 +34,10 @@ tree in a SNMP MIB file.
         -x, --privacy=PROTOCOL      privacy protocol (DES|AES)
         -X, --privpass=PASSPHRASE   privacy passphrase
 
+    Zabbix template version
+
+    -z, --zabbix_ver=2|3            Zabbix Template Schema Version (default: 3)
+
     Zabbix item configuration
 
         --check-delay=SECONDS       check interval in seconds (default: 60)
@@ -45,7 +49,7 @@ tree in a SNMP MIB file.
 
 ### Requirements
 
-* Zabbix v3+
+* Zabbix v2.4, 3+
 * Perl v5
 * Pod::Usage
 * XML::Simple
