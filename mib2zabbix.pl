@@ -538,8 +538,8 @@ sub node_to_trapitem {
     
     # Create trap key
     my $oid = $node->{ objectID };
-    $oid =~ s/\./\\./g;
-    $item->{ key } = "snmptrap[\"\\s$oid\\s\"]";
+    $oid =~ s/\.1\.3\.6\.1\.4\.1/SNMPv2\-SMI\:\:enterprises/g; # Replace .1.3.6.1.4.1 with SNMPv2-SMI::enterprises
+    $item->{ key } = "snmptrap[\"$oid\"]";
     
     # Parse item desciption
     my $desc = '';
