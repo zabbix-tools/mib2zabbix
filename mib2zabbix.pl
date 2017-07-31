@@ -156,9 +156,9 @@ my $snmpver_map = {
 
 # SNMP Auth config -> Zabbix item auth config
 my $snmpv3_auth_level_map = {
-    'noAuthNoPriv'  => ZBX_V3_SEC_NOAUTHNOPRIV,
-    'authNoPriv'    => ZBX_V3_SEC_AUTHNOPRIV,
-    'authPriv'      => ZBX_V3_SEC_AUTHPRIV
+    'noauthnopriv'  => ZBX_V3_SEC_NOAUTHNOPRIV,
+    'authnopriv'    => ZBX_V3_SEC_AUTHNOPRIV,
+    'authpriv'      => ZBX_V3_SEC_AUTHPRIV
 };
 
 my $snmpv3_auth_protocol_map = {
@@ -236,15 +236,12 @@ pod2usage({ -exitval => 0 }) if ($opts->{ help });
 # Validate SNMPv3 settings
 if ($opts->{ snmpver } == 3) {
     $opts->{ snmpcomm } = '';
-    
-    die("Unknown authentication level '$opts->{ v3auth_level }'") unless defined($snmpv3_auth_level_map->{ $opts->{ v3auth_level } });
-    $opts->{ v3auth_level } = $snmpv3_auth_level_map->{ $opts->{ v3auth_level } };
-    
-    die("Unknown authentical protocol '$opts->{ v3auth_protocol }'") unless defined($snmpv3_auth_protocol_map->{ $opts->{ v3auth_protocol } });
-    $opts->{ v3auth_protocol } = $snmpv3_auth_protocol_map->{ $opts->{ v3auth_protocol } };
-    
-    die("Unknown privacy protocol '$opts->{ v3sec_protocol }'") unless defined ($snmpv3_sec_protocol_map->{ $opts->{ v3sec_protocol } });
-    $opts->{ v3sec_protocol } = $snmpv3_sec_protocol_map->{ $opts->{ v3sec_protocol } };
+    $opts->{ v3auth_level } = $snmpv3_auth_level_map->{ lc($opts->{ v3auth_level }) }
+        or die("Unknown authentication level '$opts->{ v3auth_level }'");
+    $opts->{ v3auth_protocol } = $snmpv3_auth_protocol_map->{ lc($opts->{ v3auth_protocol }) }
+        or die("Unknown authentication protocol '$opts->{ v3auth_protocol }'");
+    $opts->{ v3sec_protocol } = $snmpv3_sec_protocol_map->{ lc($opts->{ v3sec_protocol }) }
+        or die("Unknown privacy protocol '$opts->{ v3sec_protocol }'");
 }
 
 # Base template for Template Items, Discovery Rules and Item Prototypes
