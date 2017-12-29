@@ -236,12 +236,24 @@ pod2usage({ -exitval => 0 }) if ($opts->{ help });
 # Validate SNMPv3 settings
 if ($opts->{ snmpver } == 3) {
     $opts->{ snmpcomm } = '';
-    $opts->{ v3auth_level } = $snmpv3_auth_level_map->{ lc($opts->{ v3auth_level }) }
-        or die("Unknown authentication level '$opts->{ v3auth_level }'");
-    $opts->{ v3auth_protocol } = $snmpv3_auth_protocol_map->{ lc($opts->{ v3auth_protocol }) }
-        or die("Unknown authentication protocol '$opts->{ v3auth_protocol }'");
-    $opts->{ v3sec_protocol } = $snmpv3_sec_protocol_map->{ lc($opts->{ v3sec_protocol }) }
-        or die("Unknown privacy protocol '$opts->{ v3sec_protocol }'");
+    if (defined $snmpv3_auth_level_map->{ lc($opts->{ v3auth_level }) }) {
+        $opts->{ v3auth_level } = $snmpv3_auth_level_map->{ lc($opts->{ v3auth_level }) }
+    }
+    else {
+        die("Unknown authentication level '$opts->{ v3auth_level }'");
+    }
+    if (defined $snmpv3_auth_protocol_map->{ lc($opts->{ v3auth_protocol }) }) {
+        $opts->{ v3auth_protocol } = $snmpv3_auth_protocol_map->{ lc($opts->{ v3auth_protocol }) }
+    }
+    else {
+        die("Unknown authentication protocol '$opts->{ v3auth_protocol }'");
+    }
+    if (defined $snmpv3_sec_protocol_map->{ lc($opts->{ v3sec_protocol }) }) {
+        $opts->{ v3sec_protocol } = $snmpv3_sec_protocol_map->{ lc($opts->{ v3sec_protocol }) }
+    }
+    else {
+        die("Unknown privacy protocol '$opts->{ v3sec_protocol }'");
+    }
 }
 
 # Base template for Template Items, Discovery Rules and Item Prototypes
