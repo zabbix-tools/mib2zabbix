@@ -57,7 +57,7 @@ tree in a SNMP MIB file.
 Install from GitHub:
 
     # install prerequisites on Ubuntu: 
-    apt-get install perl libxml-simple-perl libsnmp-perl
+    apt-get install perl libxml-simple-perl libsnmp-perl libtimedate-perl
 
     # install prerequisites on RHEL family:
     yum install "perl(SNMP)" "perl(XML::Simple)"
