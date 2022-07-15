@@ -75,6 +75,7 @@ http://www.webnms.com/snmp/help/snmpapi/snmpv3/table_handling/snmptables_basics.
 
 use strict;
 #use warnings;
+no warnings 'experimental::smartmatch';
 
 use Cwd 'abs_path';
 use Data::Dumper;
