@@ -510,7 +510,7 @@ sub node_to_item {
 
         # add template value map
         $valuemaps->{ $map_name }->{ 'mappings' } = [];
-        foreach(keys %{ $node->{ enums } }) {
+        foreach(sort keys %{ $node->{ enums } }) {
             push(@{ $valuemaps->{ $map_name }->{ 'mappings' } }, {
                 'value'     => $node->{ enums }->{ $_ },
                 'newvalue'  => $_
@@ -876,7 +876,7 @@ if (!$oid_root || $oid_root->{ objectID } ne $opts->{ oid }) {
     build_template($template, $oid_root, 0);
 
     # Convert applications hash to array
-    @{ $template->{ applications } } = map { { name => $_ } } keys %{ $template->{ apptags } };
+    @{ $template->{ applications } } = map { { name => $_ } } sort keys %{ $template->{ apptags } };
     delete($template->{ apptags });
 
     # Build XML document
