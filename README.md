@@ -36,8 +36,8 @@ tree in a SNMP MIB file.
 
     Zabbix item configuration
 
-        --check-delay=SECONDS       check interval in seconds (default: 60)
-        --disc-delay=SECONDS        discovery interval in seconds (default: 3600)
+        --check-delay=TIME          check interval in Zabbix time units (default: 1m)
+        --disc-delay=TIME           discovery interval in Zabbix time units (default: 1h)
         --history=DAYS              history retention in days (default: 7)
         --trends=DAYS               trends retention in days (default: 365)
         
